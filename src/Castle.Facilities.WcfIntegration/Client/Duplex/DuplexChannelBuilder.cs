@@ -26,26 +26,58 @@ namespace Castle.Facilities.WcfIntegration
         {
         }
 
+        private InstanceContext GetInstanceContext(DuplexClientModel clientModel)
+        {
+            if (clientModel.CallbackContext == null)
+            {
+                if (clientModel.CallbackType == null)
+                    throw new InvalidOperationException(
+                        "Neither CallbackContext nor CallbackType defined in DuplexClientModel");
+
+                var callback = Kernel.Resolve(clientModel.CallbackType);
+
+                if (callback == null)
+                    throw new InvalidOperationException(
+                        "Unable to resolve callback");
+
+                clientModel.CallbackContext = new InstanceContext(callback);
+            }
+
+            return clientModel.CallbackContext;
+        }
+
         protected override ChannelCreator GetChannel(DuplexClientModel clientModel, Type contract, Binding binding, string address)
         {
-            return CreateChannelCreator(contract, clientModel, clientModel.CallbackContext, binding, address);
+            return CreateChannelCreator(contract, clientModel, binding, address);
         }
 
         protected override ChannelCreator GetChannel(DuplexClientModel clientModel, Type contract, Binding binding,
                                                      EndpointAddress address)
         {
-            return CreateChannelCreator(contract, clientModel, clientModel.CallbackContext, binding, address);
+            return CreateChannelCreator(contract, clientModel, binding, address);
         }
 
-        protected override ChannelCreator CreateChannelCreator(Type contract, DuplexClientModel clientModel,
-                                                               params object[] channelFactoryArgs)
+        protected override ChannelCreator CreateChannelCreator(Type contract, DuplexClientModel clientModel, params object[] args)
         {
-			var type = typeof(DuplexChannelFactory<>).MakeGenericType(new Type[] { contract });
-			var channelFactory = ChannelFactoryBuilder.CreateChannelFactory(type, clientModel, channelFactoryArgs);
-			ConfigureChannelFactory(channelFactory);
+            return () =>
+                       {
+                           var channelFactoryArgs = new object[3];
 
-			var methodInfo = type.GetMethod("CreateChannel", new Type[0]);
-            return (ChannelCreator)Delegate.CreateDelegate(typeof(ChannelCreator), channelFactory, methodInfo);
+                           channelFactoryArgs[0] = GetInstanceContext(clientModel);
+                           channelFactoryArgs[1] = args[0];
+                           channelFactoryArgs[2] = args[1];
+
+                           var type = typeof(DuplexChannelFactory<>).MakeGenericType(new[] { contract });
+
+                           var channelFactory = ChannelFactoryBuilder.CreateChannelFactory(type, clientModel, channelFactoryArgs);
+                           ConfigureChannelFactory(channelFactory);
+
+                           var methodInfo = type.GetMethod("CreateChannel", new Type[0]);
+
+                           var channelCreate = (ChannelCreator)Delegate.CreateDelegate(typeof(ChannelCreator), channelFactory, methodInfo);
+
+                           return channelCreate();
+                       };
         }
     }
 }

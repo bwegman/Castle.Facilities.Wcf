@@ -43,7 +43,10 @@ namespace Castle.Facilities.WcfIntegration.Tests.Duplex
 							WcfEndpoint.BoundTo(new NetTcpBinding())
 								.At("net.tcp://localhost/ServiceWithCallback")
 							   )
-				));
+				))
+                .Register(Component.For<ICallbackService>()
+                    .ImplementedBy<CallbackService>()
+                );
 		}
 
 		[TearDown]
@@ -53,6 +56,36 @@ namespace Castle.Facilities.WcfIntegration.Tests.Duplex
 		}
 
 		#endregion
+
+        [Test]
+        public void CanCreateDuplexProxyWithCallbackType()
+        {
+            IWindsorContainer localContainer = new WindsorContainer();
+
+            localContainer.AddFacility<WcfFacility>();
+
+            DuplexClientModel model = new DuplexClientModel
+            {
+                Endpoint = WcfEndpoint.ForContract<IServiceWithCallback>()
+                    .BoundTo(new NetTcpBinding())
+                    .At("net.tcp://localhost/ServiceWithCallback")
+            }.WithCallback<ICallbackService>();
+
+            localContainer.Register(WcfClient.ForChannels(model));
+
+            localContainer.Register(Component.For<ICallbackService>()
+                                        .ImplementedBy<CallbackService>());
+
+            var callbackService = localContainer.Resolve<ICallbackService>();
+
+            Assert.AreEqual(0, ((CallbackService)callbackService).ValueFromTheOtherSide);
+
+            IServiceWithCallback proxy = localContainer.Resolve<IServiceWithCallback>();
+            proxy.DoSomething(21);
+
+            Assert.IsAssignableFrom(typeof(CallbackService), callbackService);
+            Assert.AreEqual(42, ((CallbackService)callbackService).ValueFromTheOtherSide);
+        }
 
 		[Test]
 		public void CanCreateDuplexProxyAndHandleCallback()

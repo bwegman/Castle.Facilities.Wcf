@@ -20,6 +20,7 @@ namespace Castle.Facilities.WcfIntegration
 	public class DuplexClientModel : WcfClientModel<DuplexClientModel>
     {
         private InstanceContext callbackContext;
+	    private Type callbackType;
 
 		public DuplexClientModel()
 		{
@@ -30,9 +31,26 @@ namespace Castle.Facilities.WcfIntegration
 		{
 		}
 
-        public InstanceContext CallbackContext
+	    public Type CallbackType
+	    {
+	        get { return callbackType; }
+            set
+            {
+                if (value == null)
+                {
+                    throw new ArgumentNullException("value");
+                }
+
+                callbackType = value;
+            }
+	    }
+
+	    public InstanceContext CallbackContext
         {
-			get { return callbackContext; }
+			get
+			{
+			    return callbackContext;
+			}
             set
             {
                 if (value == null)
@@ -53,5 +71,12 @@ namespace Castle.Facilities.WcfIntegration
 		{
 			return new DuplexClientModel(endpoint);
 		}
+
+        public DuplexClientModel WithCallback<TCallback>()
+        {
+            callbackType = typeof (TCallback);
+
+            return this;
+        }
     }
 }
